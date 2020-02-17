@@ -54,6 +54,13 @@ ALGORITHM = "guesser"
 
 
 
+
+##Activation Function
+FUNCTION = "sigmoid"
+#FUNCTION = "relu"
+
+
+
 ## My Variables ##
 
 # The maximum value a colour can be assigned in MNIST
@@ -105,7 +112,7 @@ class NeuralNetwork_2Layer():
     def __sigmoid(self, x):
         
         # Return the value of the sigmoid function
-        return 1/(1+exp(-1*x))
+        return 1/( 1 + np.exp(-x) )
 
 
 
@@ -145,39 +152,163 @@ class NeuralNetwork_2Layer():
 
             # Return 0
             return 0
+    
+
+
+    #  Calculates the loss function, current is mse
+    #
+    #> Inputs: self - the class needs a reference to itself
+    #>         y ( value ) - the expected outcome value
+    #>         vals ( array of values ) - the values you which to find the loss on
+    #
+    #> Outputs: MSE ( value ) - the Mean Squared error with respect to the expected 
+    #>                          value for the data
+    #
+    def __loss(self, y, vals):
+        
+        # Duplicate the data set
+        operatedValues = vals
+
+        # Subtract the expected outcome value from each value
+        operatedValues = operatedValues - y
+
+        # Square each value
+        operatedValues = np.square(operatedValues)
+
+        # Divide each value by 2
+        operatedValues = operatedValues/2
+
+        #Return the full sum
+        return sum(operatedValues)
+
+
+
+    #  Calculates the loss function, current is mse
+    #
+    #> Inputs: self - the class needs a reference to itself
+    #>         y ( value ) - the expected outcome value
+    #>         vals ( array of values ) - the values you which to find the loss on
+    #
+    #> Outputs: Sum ( value ) - the sum of each data member minus the expected value
+    #
+    def __loss(self, y, vals):
+        
+        # Duplicate the data set
+        operatedValues = vals
+
+        # Subtract the expected outcome value from each value
+        operatedValues = operatedValues - y
+        
+        # Return the full sum
+        return sum(operatedValues)
+
 
 
 
     ## Batch generator for mini-batches. Not randomized.
+    #> Inputs: self - the class needs to pass itself as reference
+    #>         l - 
+    #>         n - the size by which we want to split the minibatches
+    #
+    #> Outputs: iterator (values) - the values for the batch
+    #
     def __batchGenerator(self, l, n):
         
-        # 
+        # Iterate through l generating a batch of i to i + n for each item in l
         for i in range(0, len(l), n):
             
-            #
+            # Return the batch of items from i to n
             yield l[i : i + n]
 
 
 
     ## Training with backpropagation.
+    #> Inputs:  self - the class needs to pass itself as reference
+    #>          xVals ( array of values ) - the input values to train on
+    #>          yVals ( array of values ) - the expected output values to train on
+    #>          epochs -
+    #>          minibatches ( boolean ) - defines wether we should use minibatches
+    #>          mbs ( value ) - the size of minibatches we want to use
+    #>          
     def train(self, xVals, yVals, epochs = 100000, minibatches = True, mbs = 100):
         
-        pass                                   
+        # Calculates the forward pass over the input values for 2 layers
+        # Is a pair of values
+        layer1out, layer2out = self.__forward( xVals )
+        
+        # Calculates the layer 2 error
+        # Is a value
+        layer2error = self.__lossDerivative(y,layer2out)
+
+
+        # Calculates the layer 2 delta
+        # layer2delta is a value
+        # Case for if the activation function is the sigmoid
+        if FUNCTION == "sigmoid":
+            layer2delta = layer2error*self.__sigmoidDerivative(layer2out)
+        
+        # Case for if the activation function is the 
+        elif FUNCTION == "relu":
+            layer2delta = layer2error*self.__reluDerivative(layer2out)
+
+        # Default case for the activation function
+        else:
+            print("Get an activation function.")
+
+
+        
+        # Calculates the layer 1 error
+        # Figure out what w^2 is
+        #layer1error = 
+
+        #pass                                   
         
         ##TODO: Implement backprop. allow minibatches. mbs should specify the size of each minibatch.
-
+        
 
 
     ## Forward pass.
+    #> Inputs: self - this methods needs the reference of the class
+    #>         input - the items that you desire to have train and get the
+    #>                 values of on a first pass
+    #>
     def __forward(self, input):
         
-        # 
-        layer1 = self.__sigmoid(np.dot(input, self.W1))
+
+
+
+        # Do a pass over the first layer 
+
+        # Case for if the activation function is sigmoid
+        if FUNCTION == "sigmoid":
+            layer1 = self.__sigmoid( np.dot( input , self.W1 ) )
         
-        #
-        layer2 = self.__sigmoid(np.dot(layer1, self.W2))
+        # Case for if the activation function is relu
+        elif FUNCTION == "relu":
+            layer1 = self.__relu( np.dot( input , self.W1 ) )
         
-        #
+        # Default case for your activation function
+        else:
+            print("Your shit out of luck m8!")
+
+
+
+
+        # Do a pass over the second layer
+
+        # Case for if the activation function is sigmoid
+        if FUNCTION == "sigmoid":
+            layer2 = self.__sigmoid( np.dot( layer1 , self.W2 ) )
+        
+        # Case for if the activation function is relu
+        elif FUNCTION == "relu":
+            layer2 = self.__relu( np.dot( layer2 , self.W2) )
+
+        # Default case for the activation function
+        else:
+            print("Your shit out of luck again m8!")
+
+        # Returns a pair of values
         return layer1, layer2
 
 
