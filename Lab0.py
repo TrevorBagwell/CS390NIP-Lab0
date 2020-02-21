@@ -1,9 +1,11 @@
-
 import os
+#import pandas as pd
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.utils import to_categorical
+#from sklearn.metrics import confusion_matrix
+#from sklearn.metrics import f1_score
 import random
 
 
@@ -48,9 +50,9 @@ IMAGE_SIZE = 784
 
 ## Use these to set the algorithm to use.
 ## Basically does the same thing as a switch case when asking for the algorithm handling
-ALGORITHM = "guesser"
+#ALGORITHM = "guesser"
 #ALGORITHM = "custom_net"
-#ALGORITHM = "tf_net"
+ALGORITHM = "tf_net"
 
 
 
@@ -72,6 +74,18 @@ TRAINING_SIZE = 60000
 # Count of all the images in the MNIST Test set
 TEST_SIZE = 10000
 
+# Count of Epochs to be used in batching
+CUSTOM_EPOCHS = 10
+TF_EPOCHS = 3
+
+# The size of the Minibatches to be used
+MINIBATCHES = 100
+
+# The size of the One-Hot arrays
+ONE_HOT_SIZE = 10
+
+# Activates the debugger
+DEBUG = 1
 
 # Holds my custom nueral net
 class NeuralNetwork_2Layer():
@@ -122,7 +136,7 @@ class NeuralNetwork_2Layer():
         # It's assumed that the sigmoid function is called on x before
         # it gets to this point
         # Returns the derivative of the sigmoid
-        return x*(1-x)
+        return self.__sigmoid(x)*(1-self.__sigmoid(x))
 
 
 
@@ -131,12 +145,27 @@ class NeuralNetwork_2Layer():
         
         # ReLU functions is the function that operates on a value
         # Giving it value if it is greater than 0, else it is just 0
-        return max( 0 , x )
+        
+        # If x is greater than 0, then the value is x
+        #if x > 0:
+            #return x
+        
+        # Else the value is 0
+        #else:
+            #return 0
+            return np.maximum( 0 , x )
+    
 
 
+    # The relu derivative for multiple elements
+    def __reluDerivative( self , x ):
 
-    # Activation function 2's derivative
-    def __reluDerivative(self, x):
+        return np.array( [ self.__reluDerivativeSingleElement(xi) for xi in x ] )
+    
+    
+
+    # Activation function 2's derivative for a single element
+    def __reluDerivativeSingleElement(self, x):
         
         # Since relu technically doesn't have a completey continuous
         # derivative, this gives it's derivative a value at 0
@@ -168,16 +197,16 @@ class NeuralNetwork_2Layer():
         
         # Duplicate the data set
         operatedValues = vals
-
+        
         # Subtract the expected outcome value from each value
         operatedValues = operatedValues - y
-
+        
         # Square each value
         operatedValues = np.square(operatedValues)
-
+        
         # Divide each value by 2
         operatedValues = operatedValues/2
-
+        
         #Return the full sum
         return sum(operatedValues)
 
@@ -191,16 +220,16 @@ class NeuralNetwork_2Layer():
     #
     #> Outputs: Sum ( value ) - the sum of each data member minus the expected value
     #
-    def __loss(self, y, vals):
+    #def __lossDerivative(self, y, vals):
         
         # Duplicate the data set
-        operatedValues = vals
+        #operatedValues = vals
 
         # Subtract the expected outcome value from each value
-        operatedValues = operatedValues - y
+        #operatedValues = operatedValues - y
         
         # Return the full sum
-        return sum(operatedValues)
+        #return sum(operatedValues)
 
 
 
@@ -208,7 +237,7 @@ class NeuralNetwork_2Layer():
     ## Batch generator for mini-batches. Not randomized.
     #> Inputs: self - the class needs to pass itself as reference
     #>         l - 
-    #>         n - the size by which we want to split the minibatches
+    #>         n - the size of the minibatches
     #
     #> Outputs: iterator (values) - the values for the batch
     #
@@ -230,41 +259,85 @@ class NeuralNetwork_2Layer():
     #>          minibatches ( boolean ) - defines wether we should use minibatches
     #>          mbs ( value ) - the size of minibatches we want to use
     #>          
-    def train(self, xVals, yVals, epochs = 100000, minibatches = True, mbs = 100):
-        
-        # Calculates the forward pass over the input values for 2 layers
-        # Is a pair of values
-        layer1out, layer2out = self.__forward( xVals )
-        
-        # Calculates the layer 2 error
-        # Is a value
-        layer2error = self.__lossDerivative(y,layer2out)
+    def train(self, xVals, yVals, epochs = CUSTOM_EPOCHS, minibatches = True, mbs = MINIBATCHES):
+        #print("Size of the xVals %s" % str(xVals.shape))
+        #print("Size of the yVals %s" % str(yVals.shape))
+        #print()
+        #print()
 
 
-        # Calculates the layer 2 delta
-        # layer2delta is a value
-        # Case for if the activation function is the sigmoid
-        if FUNCTION == "sigmoid":
-            layer2delta = layer2error*self.__sigmoidDerivative(layer2out)
-        
-        # Case for if the activation function is the 
-        elif FUNCTION == "relu":
-            layer2delta = layer2error*self.__reluDerivative(layer2out)
+        # Make i amount of epochs and iterate through them
+        for i in range(epochs):
+            
+            # Make a batch for the input values
+            xBatch = self.__batchGenerator( xVals , mbs )
+            
+            # Make a batch for the output values
+            yBatch = self.__batchGenerator( yVals , mbs )
 
-        # Default case for the activation function
-        else:
-            print("Get an activation function.")
+            for j in range( int( len( xVals )/mbs ) ):
+                
+                # Makes minibatches for the input and output values
+                # Allows us to iterate over the next minibatch
+                # Is a sub tensor for both
+                xMiniBatch = next( xBatch )
+                yMiniBatch = next( yBatch )
 
+                # Calculates the forward pass over the input values for 2 layers
+                # Is a pair of tensors of value
+                layer1out, layer2out = self.__forward( xMiniBatch )
+        
+                # Calculates the layer 2 error
+                # Is a tensor of values
+                layer2error = yMiniBatch - layer2out
+        
+                # Calculates the layer 2 delta
+                # layer2delta is a tensor of values
 
+                # Case for if the activation function is the sigmoid
+                if FUNCTION == "sigmoid":
+                    #layer2delta = np.dot ( layer2error.T , self.__sigmoidDerivative(layer2out ) ).T
+                    layer2delta = layer2error*self.__sigmoidDerivative(layer2out)
+                # Case for if the activation function is the 
+                elif FUNCTION == "relu":
+                    #layer2delta = np.dot ( layer2error.T , self.__reluDerivative(layer2out ) ).T
+                    layer2delta = layer2error*self.__reluDerivative(layer2out)
+                
+                # Default case for the activation function
+                else:
+                    print("Get an activation function.")
         
-        # Calculates the layer 1 error
-        # Figure out what w^2 is
-        #layer1error = 
+        
+        
+                # Calculates the layer 1 error
+                layer1error = np.dot( layer2delta , self.W2.T )
 
-        #pass                                   
-        
-        ##TODO: Implement backprop. allow minibatches. mbs should specify the size of each minibatch.
-        
+                # Calculates the layer 1 delta
+                # Case for sigmoid activation function
+                if FUNCTION == "sigmoid":
+                    layer1delta = layer1error*self.__sigmoidDerivative( layer1out )
+                # Case for relu activation function
+                elif FUNCTION == "relu":
+                    layer2delta = layer1error*self.__reluDerivative( layer1out )
+
+                # Default case for activation function
+                else:
+                    print("Choose an activation function!!!!")
+
+                # Calculates the Adjustement that we end up adding to each weight
+                # for weight set 1
+                layer1adjustment = np.dot( xMiniBatch.T , layer1delta )*self.lr
+
+                # Calculates the Adjustement that we end up adding to each weight
+                # for weight set 2
+                layer2adjustment = np.dot( layer1out.T , layer2delta )*self.lr
+                
+                # Add the add the justment to each layer
+                self.W2 = self.W2 + layer2adjustment
+                self.W1 = self.W1 + layer1adjustment
+                
+                
+
 
 
     ## Forward pass.
@@ -274,40 +347,44 @@ class NeuralNetwork_2Layer():
     #>
     def __forward(self, input):
         
-
-
-
+        #print("size of input %s"%str(input.shape))
+        #print("size of weights 1 %s"%str(self.W1.shape))
+        
         # Do a pass over the first layer 
-
+        
         # Case for if the activation function is sigmoid
         if FUNCTION == "sigmoid":
             layer1 = self.__sigmoid( np.dot( input , self.W1 ) )
-        
+            
         # Case for if the activation function is relu
         elif FUNCTION == "relu":
             layer1 = self.__relu( np.dot( input , self.W1 ) )
-        
+            
         # Default case for your activation function
         else:
             print("Your shit out of luck m8!")
-
-
-
-
+               
+        #print("Size of Layer 1 in forward%s"%str(layer1.shape))
+        
+        
         # Do a pass over the second layer
-
+        
         # Case for if the activation function is sigmoid
         if FUNCTION == "sigmoid":
             layer2 = self.__sigmoid( np.dot( layer1 , self.W2 ) )
-        
+            
         # Case for if the activation function is relu
         elif FUNCTION == "relu":
-            layer2 = self.__relu( np.dot( layer2 , self.W2) )
-
+            layer2 = self.__relu( np.dot( layer1 , self.W2) )
+            
         # Default case for the activation function
         else:
             print("Your shit out of luck again m8!")
-
+            
+            
+        #print("Shape of layer2 %s"%str(layer2.shape))
+        
+        
         # Returns a pair of values
         return layer1, layer2
 
@@ -317,10 +394,33 @@ class NeuralNetwork_2Layer():
     def predict(self, xVals):
         
         # What the fuck, I didn't even know this was legal in a coding language
+        # So turns out this is legal if you want to not store the first item in the pair
+        # and only care about shitty coding standards. So only layer2 gets assigned 
+        # a value
+        # 
+        # layer2 is a tensor of values
         _, layer2 = self.__forward(xVals)
         
-        #TODO: Figure out why we return layer2
-        return layer2
+        # Convert the layer2 to a One-Hot array
+        yValues = []
+
+        # For every entry in the second layer 
+        for entry in layer2:
+
+            # Instantiate a One-Hot array temp
+            pred = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            
+            # Gets the index value that we are going to put the one hot array in
+            index = np.argmax(entry)
+            
+            # Set the part of the One-Hot array to one
+            pred[index] = 1
+
+            # Adds the entry to the array
+            yValues.append(pred)
+
+        # Return a python array of the predicted values as One-Hot arrays
+        return np.array(yValues)
 
 
 
@@ -346,6 +446,31 @@ def guesserClassifier(xTest):
     # We return a copy of the array as the array will be 
     # destroyed when we are done with it
     return np.array(ans)
+
+#=========================<One-Hot Conversion Functions>========================
+def convertToOneHot(data):
+    # Instantiate the answers as an array
+    # Will be an array of One-Hot arrays
+    ans = []
+
+    # Randomly create entries for the array based off of randomness
+    for entry in data:
+
+        # Instantiate a One-Hot array
+        pred = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+        # Set one of it's values to 1
+        pred[random.randint(0, 9)] = 1
+
+        # Add the entry to the answers array
+        ans.append(pred)
+
+    # We return a copy of the array as the array will be
+    # destroyed when we are done with it
+    return np.array(ans)
+
+
+
 
 
 
@@ -390,7 +515,9 @@ def getRawData():
 # prints off the transformed dataset shape and size 
 # then returns a <<array,array<array>>,<<array>,<array<array>>>
 def preprocessData(raw):
-    
+    # Calculates the Adjustement that we end up adding to each weight
+                # fo weight 1
+
     # Make variable place holders for the pair of pairs in raw
     ((xTrain, yTrain), (xTest, yTest)) = raw            
 
@@ -418,10 +545,10 @@ def preprocessData(raw):
 
     # yTrainP is a transform on yTrain to turn numbers into One-Hot arrays
     yTrainP = to_categorical(yTrain, NUM_CLASSES)
-    
+
     # yTestP is a transorm on yTest to turn numbers into One-Hot arrays
     yTestP = to_categorical(yTest, NUM_CLASSES)
-    
+        
     # Prints the size and shape of the input training data, assumed to be (60k, 28, 28)
     print("New shape of xTrain dataset: %s." % str(xTrain.shape))
     
@@ -449,6 +576,8 @@ def trainModel(data):
     # yTrain is an array of One-Hot arrays representing each expected output
     xTrain, yTrain = data
     
+    print("Shape of yTrain %s"%str(yTrain.shape))
+
     # Case for a randomized guessing algorithm
     if ALGORITHM == "guesser":
         return None   
@@ -461,16 +590,19 @@ def trainModel(data):
         print("Building and training Custom_NN.")
         
         # Prints the status of the function
-        print("Not yet implemented.")                   
-        #print("Implemented.")
+        #print("Not yet implemented.")                   
+        print("Implemented.")
 
 
         #TODO: Write code to build and train your custom neural net.
         
+        myModel = NeuralNetwork_2Layer( IMAGE_SIZE , ONE_HOT_SIZE , 512)
+        
+        myModel.train( xTrain , yTrain )
         
         
         # TODO: Figure out what we need to return
-        return None
+        return myModel
     
     # Case for my Keras based nueral net
     elif ALGORITHM == "tf_net":
@@ -479,15 +611,41 @@ def trainModel(data):
         print("Building and training TF_NN.")
         
         # Prints the status of the function
-        print("Not yet implemented.")
-        #print("Implemented.")
+        #print("Not yet implemented.")
+        print("Implemented.")
 
 
         #TODO: Write code to build and train your keras neural net.
+        # Instantiates our model
+        tfModel = tf.keras.Sequential()
+        
+        # Instantiates the lossType for the model
+        lossType = tf.keras.losses.CategoricalCrossentropy()
+        
+        # This is the optimizer with which we will compile the nueral net
+        opt = tf.train.AdamOptimizer()
+        
+        # The input data size
+        inShape = (IMAGE_SIZE,)
+        
+        # This adds the first layer
+        tfModel.add( keras.layers.Dense( 512 , input_shape = inShape , activation = tf.nn.relu ) )
+        
+        # This adds the second layer
+        tfModel.add( keras.layers.Dense( ONE_HOT_SIZE , activation = tf.nn.relu ) )
+
+        # Compile the nueral net
+        tfModel.compile( optimizer = opt , loss = lossType , metrics = ['accuracy'] )
+
+        # Trains the data based on the training data provided
+        tfModel.fit( xTrain , yTrain, epochs = TF_EPOCHS , batch_size = 100 )
+
+        print("Gets here")
         
         
+
         #TODO: Figure out what we need to return
-        return None
+        return tfModel
     
     # You really done goofed somehow if you got here
     else:
@@ -499,7 +657,9 @@ def trainModel(data):
 # Runs the model on the code to test the outputs of the fully
 # trained nueral net
 def runModel(data, model):
-    
+   
+
+
     # Case where we just want to guess the right answer
     if ALGORITHM == "guesser":
         
@@ -514,14 +674,16 @@ def runModel(data, model):
         print("Testing Custom_NN.")
         
         # Prints the status of the function
-        print("Not yet implemented.")
-        #print("Implemented.")
-
-
-        #TODO: Write code to run your custom neural net.
+        #print("Not yet implemented.")
+        print("Implemented.")
         
-        # Figure out what we need to return
-        return None
+        # Get the predictions from the model
+
+        dataset = model.predict(data)
+        
+        
+        # Return the dataset
+        return dataset
     
     # Case where we want to test the Keras model
     elif ALGORITHM == "tf_net":
@@ -530,15 +692,17 @@ def runModel(data, model):
         print("Testing TF_NN.")
         
         # Prints the status of the function
-        print("Not yet implemented.")
-        #print("Implemented.")
+        #print("Not yet implemented.")
+        print("Implemented.")
         
 
         #TODO: Write code to run your keras neural net.
-        
-
+        dataset = model.predict(data)
+        dataset 
+        #print("Shape of dataset %s"%tuple(dataset))
         # Figure out what we need to return
-        return None
+        return dataset
+
     
     #You done goofed if it got here
     else:
@@ -562,6 +726,25 @@ def evalResults(data, preds):
     # A pair of arrays that hold the test inputs and outputs
     xTest, yTest = data
     
+
+    # Print off a few new lines for spacing
+    print()
+    print()
+
+    # Compute the f1_score for the classes
+    if DEBUG == 1:
+        print("The shape of predictions: %s"%str(preds.shape))
+        print(preds)
+    
+    
+    # Print off a few new lines for spacing
+    print()
+    print()
+
+
+
+
+
     # The accuracy counter of the data, assumed to be 0 without any data
     acc = 0
     
@@ -615,6 +798,7 @@ def main():
     # calculating the scores of efficiency 
     # and outputs the values to the standard out
     evalResults(data[1], preds)
+
 
 
 
