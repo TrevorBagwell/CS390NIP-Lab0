@@ -1,11 +1,11 @@
 import os
-#import pandas as pd
+import pandas as pd
 import numpy as np
 import tensorflow as tf
+#from sklearn.metrics import confusion_matrix
 from tensorflow import keras
 from tensorflow.keras.utils import to_categorical
-#from sklearn.metrics import confusion_matrix
-#from sklearn.metrics import f1_score
+from matplotlib import pyplot
 import random
 
 
@@ -76,7 +76,7 @@ TEST_SIZE = 10000
 
 # Count of Epochs to be used in batching
 CUSTOM_EPOCHS = 10
-TF_EPOCHS = 3
+TF_EPOCHS = 5
 
 # The size of the Minibatches to be used
 MINIBATCHES = 100
@@ -85,7 +85,14 @@ MINIBATCHES = 100
 ONE_HOT_SIZE = 10
 
 # Activates the debugger
-DEBUG = 1
+DEBUG = 0
+
+# Has the nueron count for the given layers
+NUERON_COUNT_PER_LAYER = 768
+
+# We set the dropout rate to around 20% because that's a little justifiable
+DROPOUT_RATE = 0.5
+
 
 # Holds my custom nueral net
 class NeuralNetwork_2Layer():
@@ -296,11 +303,12 @@ class NeuralNetwork_2Layer():
 
                 # Case for if the activation function is the sigmoid
                 if FUNCTION == "sigmoid":
-                    #layer2delta = np.dot ( layer2error.T , self.__sigmoidDerivative(layer2out ) ).T
+                    
                     layer2delta = layer2error*self.__sigmoidDerivative(layer2out)
+                
                 # Case for if the activation function is the 
                 elif FUNCTION == "relu":
-                    #layer2delta = np.dot ( layer2error.T , self.__reluDerivative(layer2out ) ).T
+                    
                     layer2delta = layer2error*self.__reluDerivative(layer2out)
                 
                 # Default case for the activation function
@@ -311,11 +319,13 @@ class NeuralNetwork_2Layer():
         
                 # Calculates the layer 1 error
                 layer1error = np.dot( layer2delta , self.W2.T )
+                
 
                 # Calculates the layer 1 delta
                 # Case for sigmoid activation function
                 if FUNCTION == "sigmoid":
                     layer1delta = layer1error*self.__sigmoidDerivative( layer1out )
+                
                 # Case for relu activation function
                 elif FUNCTION == "relu":
                     layer2delta = layer1error*self.__reluDerivative( layer1out )
@@ -324,13 +334,16 @@ class NeuralNetwork_2Layer():
                 else:
                     print("Choose an activation function!!!!")
 
+                
                 # Calculates the Adjustement that we end up adding to each weight
                 # for weight set 1
                 layer1adjustment = np.dot( xMiniBatch.T , layer1delta )*self.lr
 
+                
                 # Calculates the Adjustement that we end up adding to each weight
                 # for weight set 2
                 layer2adjustment = np.dot( layer1out.T , layer2delta )*self.lr
+                
                 
                 # Add the add the justment to each layer
                 self.W2 = self.W2 + layer2adjustment
@@ -346,10 +359,7 @@ class NeuralNetwork_2Layer():
     #>                 values of on a first pass
     #>
     def __forward(self, input):
-        
-        #print("size of input %s"%str(input.shape))
-        #print("size of weights 1 %s"%str(self.W1.shape))
-        
+         
         # Do a pass over the first layer 
         
         # Case for if the activation function is sigmoid
@@ -447,7 +457,15 @@ def guesserClassifier(xTest):
     # destroyed when we are done with it
     return np.array(ans)
 
+
+
+
 #=========================<One-Hot Conversion Functions>========================
+
+
+
+
+# Converts an array of values to a one hot array
 def convertToOneHot(data):
     # Instantiate the answers as an array
     # Will be an array of One-Hot arrays
@@ -472,6 +490,100 @@ def convertToOneHot(data):
 
 
 
+
+# Converts a set of one hot arrays to value based
+# arrays. So [0, 1, 0] gets converted to 1
+def convertFromOneHot(data):
+    # Instantiate the answers as an array
+    # Will be an array of One-Hot arrays
+    ans = []
+
+    # Randomly create entries for the array based off of randomness
+    for entry in data:
+        value = -1
+
+        # Convert an entry from a one hot to a number
+        for i in range(entry.size):
+            if entry[i] == 1:
+                value = i
+                break
+
+
+        # Add the entry to the answers array
+        ans.append(value)
+
+    # We return a copy of the array as the array will be
+    # destroyed when we are done with it
+    return np.array(ans)
+
+
+
+
+# Converts an array of category indices (assumed 0 to n in range)
+# to a confusion matrix
+def makeConfusionMatrix(yPred, yActu):
+    # Instantiate a matrix to hold the answers
+    matrix = np.zeros((10,10))
+    matrix = matrix.astype(int)
+
+    # Iterate through the data and give the matching 
+    # sums for each category
+    #
+    # The x-value will be the predicted value 
+    # and the y value will be the expected value
+    for i in range(yPred.size):
+        matrix[yPred[i]][yActu[i]] = matrix[yPred[i]][yActu[i]] + 1
+
+    
+    # Return the matrix
+    # I don't know why, just did want the transpose instead
+    return matrix.T
+
+
+
+
+# Predicts the precision, recall and f1Score of an nxn matrix where n is the categories
+def predictF1Scores(matrix):
+    
+    if DEBUG == 1:
+        print("The shape of the matrix is %s"%str(matrix.shape))
+        print("The size of the matrix is %s"%str(matrix.shape[0]))
+    # Holds all the matrix values
+    recall = []
+    precision = []
+    f1Score = []
+    
+    # This is the total combined matrix that we get at the end
+    combinedMatrix = []
+
+    # This is required for very simple calculation of precision
+    transpose = matrix.T
+
+    # Iterate through the matrix and calculate the recall,
+    # the precision and the f1Score for each item
+    # Each item will be rounded to the 3rd decimal place
+    for i in range(matrix.shape[0]):
+        
+        if DEBUG == 1:
+            print("i is %s"%str(i))
+
+        # Calculates the recall score for category i
+        recall.append(round(matrix[i][i]/sum(matrix[i]),3))
+
+        # Calculates the precision score for category i
+        precision.append(round(transpose[i][i]/sum(transpose[i]),3))
+
+        # Calculates the f1 score for category i
+        f1Score.append(round(2*recall[i]*precision[i]/(precision[i]+recall[i]),3))
+
+
+
+    # Return the recall, the precision and the f1Score matrices as a combined numpy matrix
+    combinedMatrix.append(recall)
+    combinedMatrix.append(precision)
+    combinedMatrix.append(f1Score)
+
+    return np.array(combinedMatrix)
 
 
 #=========================<Pipeline Functions>==================================
@@ -629,17 +741,33 @@ def trainModel(data):
         inShape = (IMAGE_SIZE,)
         
         # This adds the first layer
-        tfModel.add( keras.layers.Dense( 512 , input_shape = inShape , activation = tf.nn.relu ) )
-        
+        #tfModel.add( keras.layers.Dense( NUERON_COUNT_PER_LAYER , kernel_initializer = 'he_uniform',  input_shape = inShape , activation = tf.nn.relu ) )
+        tfModel.add( keras.layers.Dense( NUERON_COUNT_PER_LAYER ,  input_shape = inShape , activation = tf.nn.relu ) )
+
+        # Sprinkle a little dropout in there
+        tfModel.add( keras.layers.Dropout( DROPOUT_RATE/2 ) )
+
         # This adds the second layer
-        tfModel.add( keras.layers.Dense( ONE_HOT_SIZE , activation = tf.nn.relu ) )
+        #tfModel.add( keras.layers.Dense( NUERON_COUNT_PER_LAYER, activation = tf.nn.relu ) )
+
+        # Add some more dropout
+        #tfModel.add( keras.layers.Dropout( DROPOUT_RATE/2 ) )
+        
+        # This adds a third layer
+        #tfModel.add( keras.layers.Dense( NUERON_COUNT_PER_LAYER/4, activation = tf.nn.sigmoid ) )
+
+        # Hit this nueral net with that C- in 252 feeling
+        #tfModel.add(keras.layers.Dropout( DROPOUT_RATE/2 ) ) 
+
+        # This adds the final layer
+        tfModel.add( keras.layers.Dense( ONE_HOT_SIZE , activation = tf.nn.softmax ) )
 
         # Compile the nueral net
         tfModel.compile( optimizer = opt , loss = lossType , metrics = ['accuracy'] )
-
+        
         # Trains the data based on the training data provided
-        tfModel.fit( xTrain , yTrain, epochs = TF_EPOCHS , batch_size = 100 )
-
+        tfModel.fit( xTrain , yTrain, epochs = TF_EPOCHS , batch_size = 32 )
+        
         print("Gets here")
         
         
@@ -698,7 +826,32 @@ def runModel(data, model):
 
         #TODO: Write code to run your keras neural net.
         dataset = model.predict(data)
-        dataset 
+        
+        if DEBUG == 1:
+            print(dataset) 
+
+        # Convert the layer2 to a One-Hot array
+        yValues = []
+
+        # For every entry in the second layer 
+        for entry in dataset:
+
+            # Instantiate a One-Hot array temp
+            pred = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+            # Gets the index value that we are going to put the one hot array in
+            index = np.argmax(entry)
+
+            # Set the part of the One-Hot array to one
+            pred[index] = 1
+
+            # Adds the entry to the array
+            yValues.append(pred)
+
+        # Return a python array of the predicted values as One-Hot arrays
+        return np.array(yValues)
+
+
         #print("Shape of dataset %s"%tuple(dataset))
         # Figure out what we need to return
         return dataset
@@ -726,20 +879,49 @@ def evalResults(data, preds):
     # A pair of arrays that hold the test inputs and outputs
     xTest, yTest = data
     
+    # Revert them from One Hot arrays to normal arrays
 
+    yRevert = convertFromOneHot(yTest)
+    pRevert = convertFromOneHot(preds)
+    
     # Print off a few new lines for spacing
-    print()
-    print()
+    print("\n")
 
     # Compute the f1_score for the classes
     if DEBUG == 1:
         print("The shape of predictions: %s"%str(preds.shape))
         print(preds)
+
     
     
+    
+    # Converts the one hot arrays back to valued items
+    yPred = pd.Series(pRevert, name='Predicted')
+    yAct = pd.Series(yRevert, name='Actual')
+
+    
+    # This is the confusion matrix of values that we want to print off
+    confusionMatrix = makeConfusionMatrix(yPred, yAct)
+    
+    # This is the recall, precision and f1 scores of the
+    # confusion matrix that we calculated
+    scores = predictF1Scores(confusionMatrix)
+   
+    # Prints off the axis labels
+    print("X-Axis is the Actual Value and Y-Axis is the Predicted Value")
+
+    # Prints the confusion matrix as a dataframe
+    print(pd.DataFrame(confusionMatrix))
+    
+    # Add some spaces to free up things
+    print("\n")
+
+    # Prints off the scores as a dataframe
+    print(pd.DataFrame(scores,index=['Recall','Precision','F1 Score']))
+
+
     # Print off a few new lines for spacing
-    print()
-    print()
+    print("\n")
 
 
 
