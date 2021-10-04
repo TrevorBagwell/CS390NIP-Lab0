@@ -328,7 +328,7 @@ class NeuralNetwork_2Layer():
                 
                 # Case for relu activation function
                 elif FUNCTION == "relu":
-                    layer2delta = layer1error*self.__reluDerivative( layer1out )
+                    layer1delta = layer1error*self.__reluDerivative( layer1out )
 
                 # Default case for activation function
                 else:
